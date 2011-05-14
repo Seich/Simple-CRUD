@@ -50,20 +50,54 @@ class simpleCRUD {
 
     public function save() {
         $query = simpleBuilder::buildInsert($this->table, $this->columns);
-
+        echo($query);
         $this->pdoStatement = $this->pdo->prepare($query);
         return $this->pdoStatement->execute($this->columns);
+    }
+
+    public function findbyId($id) {
+        $query = simpleBuilder::buildFindQuery($this->table);
+
+        $this->pdoStatement = $this->pdo->prepare($query);
+        $this->pdoStatement->bindParam(':id', $id);
+        $this->pdoStatement->execute();
+        $this->pdoStatement->setFetchMode(PDO::FETCH_ASSOC);
+        $result = $this->pdoStatement->fetch();
+        foreach ($result as $key => $value) {
+            $this->$key = $value;
+        }
     }
 
     /*------------------------------------------------
         Overloaded Stuff
     -------------------------------------*/
 
+    public function __call($name, $args) {
+
+    }
+
+    public static function __callStatic($name, $args) {
+        $classname = get_called_class();
+        
+        switch ($name) {
+            //class::find(id);
+            case 'find':
+                $do = new $classname();
+                $do->findbyId($args[0]);
+                return $do;
+            break;
+            
+            default:
+                return null;
+            break;
+        }
+    }
+
     public function __get($name) {
         if(array_key_exists($name, $this->columns)) {
             return $this->columns[$name];
         } else {
-            throw new CRUD_exception("Trying to access an undefined property.");
+            throw new CRUD_exception('Trying to access an undefined property.');
         }
     }
 
@@ -85,13 +119,18 @@ class CRUD_exception extends Exception {}
 
 class simpleBuilder {
     
-   public static function buildInsert($table, $columns) {
-        $query = "INSERT INTO $table (";
-        $query .= implode(", ", array_keys($columns)); //Get's the array keys and combines them using comas.
-        $query .= ") value (:";
-        $query .= implode(", :", array_keys($columns));
-        $query .= ")";
+    public static function buildInsert($table, $columns) {
+        $query = 'INSERT INTO ' .  $table . ' (';
+        $query .= implode(', ', array_keys($columns)); //Get's the array keys and combines them using comas.
+        $query .= ') value (:';
+        $query .= implode(', :', array_keys($columns));
+        $query .= ')';
 
+        return $query;
+    }
+
+    public static function buildFindQuery($table) {
+        $query = 'SELECT * FROM ' . $table . ' WHERE id=:id';
         return $query;
     }
 
