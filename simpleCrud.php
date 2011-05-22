@@ -13,6 +13,8 @@ class simpleCRUD {
 
     public static $dbname;
 
+    private $lastcall;
+
     public $table;
 
     private $pdo;
@@ -48,11 +50,40 @@ class simpleCRUD {
         }
     }
 
+    private function getFindQuery() {
+        $query = explode('_', $this->lastcall);
+        switch(count($query)) {
+            case 2:
+                switch($query[1]) {
+                    case 'id':
+                        return 'find_id';
+                        break;
+                }
+                break;
+            
+            default://No Special Case, just save.
+                return false;
+                break;
+        }
+    }
+
     public function save() {
-        $query = simpleBuilder::buildInsert($this->table, $this->columns);
-        echo($query);
-        $this->pdoStatement = $this->pdo->prepare($query);
-        return $this->pdoStatement->execute($this->columns);
+        $lastcall = $this->getFindQuery();
+        switch($lastcall) {
+            case 'find_id':
+                $query = simpleBuilder::buildUpdateQuery($this->table, $this->columns);
+                $this->pdoStatement = $this->pdo->prepare($query);
+                $this->lastcall = 'save';
+                return $this->pdoStatement->execute($this->columns);
+                break;
+
+            default:
+                $query = simpleBuilder::buildInsert($this->table, $this->columns);
+                $this->pdoStatement = $this->pdo->prepare($query);
+                $this->lastcall = 'save';
+                return $this->pdoStatement->execute($this->columns);
+                break;
+        }
     }
 
     public function findbyId($id) {
@@ -63,9 +94,16 @@ class simpleCRUD {
         $this->pdoStatement->execute();
         $this->pdoStatement->setFetchMode(PDO::FETCH_ASSOC);
         $result = $this->pdoStatement->fetch();
+        
+        if(!$result) {
+            throw new CRUD_exception('No results found.');    
+        }
+
         foreach ($result as $key => $value) {
             $this->$key = $value;
         }
+        $this->lastcall = 'find_id';
+        $this->oriId = $id;
     }
 
     /*------------------------------------------------
@@ -131,6 +169,18 @@ class simpleBuilder {
 
     public static function buildFindQuery($table) {
         $query = 'SELECT * FROM ' . $table . ' WHERE id=:id';
+        return $query;
+    }
+
+    public static function buildUpdateQuery($table, $columns) {
+        $query = 'UPDATE ' . $table . ' SET ';
+        $set = array();
+        foreach ($columns as $key => $value) {
+            if($key == 'oriId') continue;
+            $set[] = $key . ' = :' . $key;
+        }
+        $query .= implode(', ', $set);
+        $query .= ' WHERE id=:oriId';
         return $query;
     }
 
